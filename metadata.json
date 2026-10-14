@@ -1,0 +1,8 @@
+{
+  "name": "Bilety eTravel — Offline Train Ticket Wallet",
+  "description": "100% network-independent train ticket holder and PWA for iOS Safari and mobile devices with IndexedDB storage and GitHub Pages hosting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

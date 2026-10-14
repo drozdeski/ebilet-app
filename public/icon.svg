@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="trainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#bae6fd" />
+    </linearGradient>
+    <linearGradient id="ticketGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#fbbf24" />
+    </linearGradient>
+  </defs>
+  <!-- Background squircle -->
+  <rect width="512" height="512" rx="115" fill="url(#trainGrad)" />
+  
+  <!-- Sleek Train Locomotive / Pendolino Front Profile -->
+  <path d="M140 130 C 140 95, 372 95, 372 130 L 390 320 C 395 385, 360 410, 256 410 C 152 410, 117 385, 122 320 Z" fill="#ffffff" />
+  
+  <!-- Windshield / Panoramic Cockpit Window -->
+  <path d="M165 150 C 165 125, 347 125, 347 150 L 358 220 C 330 232, 182 232, 154 220 Z" fill="url(#glassGrad)" />
+  
+  <!-- High Speed Stripe Accent -->
+  <path d="M130 270 C 180 280, 332 280, 382 270 L 385 295 C 335 305, 177 305, 127 295 Z" fill="url(#ticketGlow)" />
+  
+  <!-- Train Headlights -->
+  <ellipse cx="175" cy="345" rx="16" ry="12" fill="#0284c7" />
+  <ellipse cx="337" cy="345" rx="16" ry="12" fill="#0284c7" />
+  <circle cx="175" cy="345" r="7" fill="#ffffff" />
+  <circle cx="337" cy="345" r="7" fill="#ffffff" />
+  
+  <!-- Center Rail Carrier Crest / QR Icon -->
+  <rect x="236" y="325" width="40" height="40" rx="8" fill="#1e3a8a" />
+  <rect x="244" y="333" width="10" height="10" fill="#ffffff" />
+  <rect x="258" y="333" width="10" height="10" fill="#ffffff" />
+  <rect x="244" y="347" width="10" height="10" fill="#ffffff" />
+  <rect x="258" y="347" width="10" height="10" fill="#fbbf24" />
+  
+  <!-- Track Underneath -->
+  <rect x="156" y="435" width="200" height="12" rx="6" fill="#ffffff" opacity="0.8" />
+  <rect x="186" y="455" width="140" height="8" rx="4" fill="#ffffff" opacity="0.5" />
+</svg>
