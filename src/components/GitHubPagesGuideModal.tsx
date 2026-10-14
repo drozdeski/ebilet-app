@@ -50,15 +50,12 @@ export const GitHubPagesGuideModal: React.FC<GitHubPagesGuideModalProps> = ({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const gitSnippet = `# 1. Inicjalizacja repozytorium git
-git init
+  const gitSnippet = `# 1. Zapisz wszystkie pliki (w tym package-lock.json oraz .github/workflows)
 git add .
-git commit -m "feat: offline iOS PWA train ticket wallet"
+git commit -m "fix: github pages workflow and package-lock"
 
-# 2. Połączenie z Twoim repozytorium na GitHubie
-git remote add origin https://github.com/drozdeski/bilety-etravel.git
-git branch -M main
-git push -u origin main`;
+# 2. Wypchnij zmiany do Twojego repozytorium na GitHubie
+git push origin main`;
 
   return (
     <div
