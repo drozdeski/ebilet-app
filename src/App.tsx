@@ -65,6 +65,19 @@ export default function App() {
   useEffect(() => {
     loadTickets();
     checkStoragePersistence().then(setIsPersisted);
+
+    // Detect iOS Standalone PWA and add root class for guaranteed notch/island clearance
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      (window.navigator as unknown as {standalone?: boolean})?.standalone === true;
+    const isIOSDevice =
+      /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase()) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (isStandalone && isIOSDevice) {
+      document.documentElement.classList.add('is-ios-standalone');
+    }
   }, []);
 
   const loadTickets = async () => {
@@ -234,15 +247,17 @@ export default function App() {
       {/* Top iOS / PWA Install Guide Banner */}
       <PWAInstallBanner />
 
-      {/* Top Bar Contract (One-row, 3-zone contract) */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
+      {/* Top Bar Contract (One-row, 3-zone contract with iOS safe area top padding) */}
+      <header
+        className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 header-safe transition-all"
+      >
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-8">
           {/* Zone 1: Brand Wordmark (Single text element) */}
-          <div className="flex items-center gap-2.5 whitespace-nowrap shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 whitespace-nowrap shrink-0">
             <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
               <Train className="w-4 h-4" />
             </div>
-            <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+            <span className="text-sm sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               Bilety eTravel
             </span>
           </div>
@@ -275,7 +290,7 @@ export default function App() {
           </nav>
 
           {/* Zone 3: Primary Actions */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <input
               type="file"
               ref={fileInputRef}
@@ -291,14 +306,14 @@ export default function App() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessingPDF}
-              className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
               {isProcessingPDF ? (
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin text-blue-400" />
               ) : (
-                <UploadCloud className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                <UploadCloud className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-blue-400 dark:text-blue-600" />
               )}
-              <span>Wgraj bilet PDF</span>
+              <span>Wgraj PDF</span>
             </button>
 
             <button
@@ -306,7 +321,7 @@ export default function App() {
                 setTicketToEdit(null);
                 setIsEditorOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Ręcznie</span>
@@ -831,7 +846,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-auto py-5 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
+      <footer className="mt-auto py-5 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 pb-safe">
         <p>Bilety eTravel — Niezależny portfel biletów kolejowych PWA dla iOS</p>
       </footer>
 

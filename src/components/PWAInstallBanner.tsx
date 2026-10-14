@@ -3,17 +3,18 @@ import {Download, Share2, PlusSquare, X, Check, Smartphone} from 'lucide-react';
 import {usePWAInstall} from '../hooks/usePWAInstall';
 
 export const PWAInstallBanner: React.FC = () => {
-  const {isInstallable, isInstalled, isIOS, install} = usePWAInstall();
+  const {isInstallable, isInstalled, install} = usePWAInstall();
   const [showGuide, setShowGuide] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  // If already installed as standalone PWA, suppress
-  if (isInstalled) {
+  // If already installed as standalone PWA or dismissed by user, suppress
+  if (isInstalled || isDismissed) {
     return null;
   }
 
   return (
     <>
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white px-4 py-2.5 shadow-sm text-xs sm:text-sm">
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white px-4 py-2.5 shadow-sm text-xs sm:text-sm header-safe">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <span className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md bg-blue-500/20 text-blue-300">
@@ -29,7 +30,7 @@ export const PWAInstallBanner: React.FC = () => {
             {isInstallable && (
               <button
                 onClick={install}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white font-medium rounded-lg text-xs transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white font-medium rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 Zainstaluj
@@ -38,10 +39,19 @@ export const PWAInstallBanner: React.FC = () => {
 
             <button
               onClick={() => setShowGuide(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 font-medium rounded-lg text-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 font-medium rounded-lg text-xs transition-colors cursor-pointer"
             >
               <Share2 className="w-3.5 h-3.5" />
               Instrukcja iOS / Safari
+            </button>
+
+            <button
+              onClick={() => setIsDismissed(true)}
+              className="p-1 text-slate-400 hover:text-white rounded-md transition-colors cursor-pointer"
+              title="Ukryj powiadomienie"
+              aria-label="Ukryj powiadomienie"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>

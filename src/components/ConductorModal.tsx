@@ -51,7 +51,7 @@ export const ConductorModal: React.FC<ConductorModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className={`fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 ${
+      className={`fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 pt-safe pb-safe ${
         maxBrightness
           ? 'bg-white'
           : 'bg-slate-950/85 backdrop-blur-md'
