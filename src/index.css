@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --sat: env(safe-area-inset-top, 0px);
@@ -7,44 +8,71 @@
   --sar: env(safe-area-inset-right, 0px);
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Base safe-area utility classes */
 .pt-safe {
   padding-top: constant(safe-area-inset-top);
-  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
 }
 
 .pb-safe {
   padding-bottom: constant(safe-area-inset-bottom);
-  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
 }
 
-.pl-safe {
-  padding-left: constant(safe-area-inset-left);
-  padding-left: max(0px, env(safe-area-inset-left, 0px));
-}
-
-.pr-safe {
-  padding-right: constant(safe-area-inset-right);
-  padding-right: max(0px, env(safe-area-inset-right, 0px));
-}
-
-/* Dedicated top navigation bar safe padding */
+/* Top header safe area (iPhone 16 Pro Dynamic Island = 59pt) */
 .header-safe {
   padding-top: constant(safe-area-inset-top);
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* iOS PWA standalone mode clearance:
-   When running in standalone/fullscreen mode on iOS, guarantee at least 48px clearance
-   so notch, Dynamic Island, and status bar clock never overlap the navbar contents. */
 @supports (-webkit-touch-callout: none) {
   @media all and (display-mode: standalone), (display-mode: fullscreen) {
     .header-safe {
-      padding-top: max(env(safe-area-inset-top, 0px), 48px);
+      padding-top: max(env(safe-area-inset-top, 54px), 54px);
     }
   }
 }
 
 .is-ios-standalone .header-safe {
-  padding-top: max(env(safe-area-inset-top, 0px), 48px);
+  padding-top: max(env(safe-area-inset-top, 54px), 54px);
+}
+
+/* Bottom iOS Native Tab Bar safe area (iPhone 16 Pro Home Indicator = 34pt) */
+.bottom-nav-safe {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media all and (display-mode: standalone), (display-mode: fullscreen) {
+    .bottom-nav-safe {
+      padding-bottom: max(env(safe-area-inset-bottom, 28px), 24px);
+    }
+  }
+}
+
+.is-ios-standalone .bottom-nav-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 28px), 24px);
+}
+
+/* Floating Action Button offset above bottom nav on iOS */
+.fab-bottom-offset {
+  bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media all and (display-mode: standalone), (display-mode: fullscreen) {
+    .fab-bottom-offset {
+      bottom: calc(4.75rem + max(env(safe-area-inset-bottom, 24px), 20px));
+    }
+  }
+}
+
+.is-ios-standalone .fab-bottom-offset {
+  bottom: calc(4.75rem + max(env(safe-area-inset-bottom, 24px), 20px));
 }

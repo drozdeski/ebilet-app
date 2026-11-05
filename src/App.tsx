@@ -3,28 +3,25 @@ import {
   Train,
   Plus,
   Search,
-  Calendar,
   Clock,
-  MapPin,
   QrCode,
   FileText,
-  FileJson,
-  Github,
   Trash2,
   Edit2,
   Archive,
   RotateCcw,
   WifiOff,
-  Wifi,
-  Sparkles,
-  ChevronRight,
-  ShieldCheck,
-  Smartphone,
-  ExternalLink,
   UploadCloud,
-  FileCheck,
   Loader2,
   Check,
+  Menu,
+  Sun,
+  Moon,
+  CalendarClock,
+  Layers,
+  SlidersHorizontal,
+  X,
+  Undo2,
 } from 'lucide-react';
 import {TrainTicket} from './types/ticket';
 import {
@@ -33,11 +30,10 @@ import {
   deleteTicket,
   checkStoragePersistence,
 } from './db/ticketStore';
-import {PWAInstallBanner} from './components/PWAInstallBanner';
 import {ConductorModal} from './components/ConductorModal';
 import {TicketModal} from './components/TicketModal';
 import {GitHubPagesGuideModal} from './components/GitHubPagesGuideModal';
-import {BackupRestoreModal} from './components/BackupRestoreModal';
+import {SettingsDrawerModal} from './components/SettingsDrawerModal';
 import {useOnlineStatus} from './hooks/useOnlineStatus';
 import {parsePDFTicket} from './utils/pdfParser';
 
@@ -46,27 +42,61 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tickets, setTickets] = useState<TrainTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<'upcoming' | 'archived' | 'all'>('upcoming');
+  const [activeFilter, setActiveFilter] = useState<'upcoming' | 'all' | 'archived'>('upcoming');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPersisted, setIsPersisted] = useState(false);
+
+  // Theme state ('dark' OLED default)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('bilety_theme_mode');
+      return saved === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  // Floating Action Button menu state
+  const [isFabOpen, setIsFabOpen] = useState(false);
 
   // PDF processing states
   const [isProcessingPDF, setIsProcessingPDF] = useState(false);
   const [pdfProcessMessage, setPdfProcessMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Undo deleted ticket toast state
+  const [deletedTicketToast, setDeletedTicketToast] = useState<TrainTicket | null>(null);
+  const undoTimerRef = useRef<number | null>(null);
+
   // Modals state
   const [selectedForConductor, setSelectedForConductor] = useState<TrainTicket | null>(null);
   const [ticketToEdit, setTicketToEdit] = useState<TrainTicket | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
-  const [isBackupOpen, setIsBackupOpen] = useState(false);
+
+  // Apply theme to <html> and meta theme-color
+  useEffect(() => {
+    const root = document.documentElement;
+    const metaTheme = document.getElementById('theme-color-meta');
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      metaTheme?.setAttribute('content', '#000000');
+    } else {
+      root.classList.remove('dark');
+      metaTheme?.setAttribute('content', '#ffffff');
+    }
+    try {
+      localStorage.setItem('bilety_theme_mode', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   useEffect(() => {
     loadTickets();
-    checkStoragePersistence().then(setIsPersisted);
+    checkStoragePersistence();
 
-    // Detect iOS Standalone PWA and add root class for guaranteed notch/island clearance
+    // Detect iOS Standalone PWA and add root class for guaranteed Dynamic Island clearance
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       window.matchMedia('(display-mode: fullscreen)').matches ||
@@ -92,17 +122,21 @@ export default function App() {
     }
   };
 
+  const handleToggleTheme = (nextTheme?: 'dark' | 'light') => {
+    setTheme((prev) => (nextTheme ? nextTheme : prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const handleProcessPDFFile = async (file: File) => {
+    setIsFabOpen(false);
     if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Wybierz poprawny plik PDF z biletem kolejowym.');
+      setPdfProcessMessage('Wybierz poprawny plik PDF z biletem kolejowym.');
       return;
     }
 
     setIsProcessingPDF(true);
-    setPdfProcessMessage('Odczytywanie danych z biletu PDF i wycinanie kodu Aztec...');
+    setPdfProcessMessage('Odczytywanie biletu PDF i wycinanie kodu Aztec...');
 
     try {
-      // 1. Read as Data URL for offline storage
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
@@ -110,7 +144,6 @@ export default function App() {
         reader.readAsDataURL(file);
       });
 
-      // 2. Parse PDF contents & extract Aztec barcode
       const parsed = await parsePDFTicket(file);
       const t = parsed.ticket;
 
@@ -120,7 +153,7 @@ export default function App() {
         `${t.carrier || 'eTravel'}#${t.trainNumber || ''}#${t.carNumber || ''}#${t.seatNumber || ''}#${t.passengerName || ''}`;
 
       const newTicket: TrainTicket = {
-        id: `pdf-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        id: `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         title: `${t.departureStation || 'Podróż'} → ${t.arrivalStation || 'Stacja docelowa'}`,
         carrier: t.carrier || 'eTravel',
         trainNumber: t.trainNumber || 'Pociąg',
@@ -154,20 +187,20 @@ export default function App() {
 
       await saveTicket(newTicket);
       await loadTickets();
+      setActiveFilter('upcoming');
 
       setPdfProcessMessage(
-        `Dodano bilet ${newTicket.trainNumber}: ${newTicket.departureStation} → ${newTicket.arrivalStation} (Wagon ${newTicket.carNumber}, Miejsce ${newTicket.seatNumber})`
+        `Dodano bilet ${newTicket.trainNumber}: ${newTicket.departureStation} → ${newTicket.arrivalStation}`
       );
 
-      // Instantly open the Conductor View with the Aztec code and ticket ready!
       setSelectedForConductor(newTicket);
 
       setTimeout(() => {
         setPdfProcessMessage(null);
-      }, 5000);
+      }, 4500);
     } catch (err) {
       console.error('Błąd podczas przetwarzania PDF:', err);
-      alert('Nie udało się automatycznie przetworzyć pliku PDF. Możesz dodać bilet ręcznie.');
+      setPdfProcessMessage('Nie udało się automatycznie odczytać PDF. Dodaj bilet ręcznie.');
     } finally {
       setIsProcessingPDF(false);
     }
@@ -180,44 +213,86 @@ export default function App() {
     await loadTickets();
   };
 
-  const handleDeleteTicket = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteTicket = async (ticket: TrainTicket, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Czy na pewno chcesz usunąć ten bilet z bazy lokalnej?')) {
-      await deleteTicket(id);
-      await loadTickets();
+    // Optimistically remove from UI immediately
+    setTickets((prev) => prev.filter((t) => t.id !== ticket.id));
+    if (selectedForConductor?.id === ticket.id) {
+      setSelectedForConductor(null);
     }
+
+    // Permanently remove from IndexedDB and localStorage mirror
+    await deleteTicket(ticket.id);
+    const updated = await getAllTickets();
+    setTickets(updated);
+
+    // Show Undo toast
+    if (undoTimerRef.current) {
+      window.clearTimeout(undoTimerRef.current);
+    }
+    setDeletedTicketToast(ticket);
+    undoTimerRef.current = window.setTimeout(() => {
+      setDeletedTicketToast(null);
+    }, 4500);
+  };
+
+  const handleUndoDelete = async () => {
+    if (!deletedTicketToast) return;
+    const toRestore = deletedTicketToast;
+    setDeletedTicketToast(null);
+    if (undoTimerRef.current) {
+      window.clearTimeout(undoTimerRef.current);
+    }
+    await saveTicket(toRestore);
+    await loadTickets();
   };
 
   const handleToggleArchive = async (ticket: TrainTicket, e: React.MouseEvent) => {
     e.stopPropagation();
-    await saveTicket({
+    const updatedTicket: TrainTicket = {
       ...ticket,
       isArchived: !ticket.isArchived,
-    });
+      updatedAt: Date.now(),
+    };
+    setTickets((prev) =>
+      prev.map((t) => (t.id === ticket.id ? updatedTicket : t))
+    );
+    await saveTicket(updatedTicket);
     await loadTickets();
   };
 
-  // Find nearest upcoming journey
-  const now = new Date().getTime();
+  // Counts
+  const upcomingCount = useMemo(
+    () => tickets.filter((t) => !t.isArchived).length,
+    [tickets]
+  );
+  const archivedCount = useMemo(
+    () => tickets.filter((t) => t.isArchived).length,
+    [tickets]
+  );
+
+  // Nearest active journey for Hero card
   const nextJourney = useMemo(() => {
-    const upcoming = tickets.filter(
-      (t) => !t.isArchived && new Date(t.arrivalTime).getTime() >= now - 1000 * 60 * 30
+    const active = tickets.filter((t) => !t.isArchived);
+    if (active.length === 0) return null;
+    const now = Date.now();
+    // Prefer future or currently running trains; fallback to earliest non-archived
+    const future = active.filter(
+      (t) => new Date(t.arrivalTime).getTime() >= now - 1000 * 60 * 60
     );
-    if (upcoming.length === 0) return null;
-    return upcoming.sort(
+    const pool = future.length > 0 ? future : active;
+    return [...pool].sort(
       (a, b) =>
         new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime()
     )[0];
-  }, [tickets, now]);
+  }, [tickets]);
 
   // Filtered tickets
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
-      // Tab filter
       if (activeFilter === 'upcoming' && ticket.isArchived) return false;
       if (activeFilter === 'archived' && !ticket.isArchived) return false;
 
-      // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesStation =
@@ -243,408 +318,307 @@ export default function App() {
   }, [tickets, activeFilter, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
-      {/* Top iOS / PWA Install Guide Banner */}
-      <PWAInstallBanner />
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleProcessPDFFile(file);
+      }}
+      className="min-h-screen bg-[#F4F5F8] dark:bg-black text-slate-900 dark:text-white flex flex-col font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200"
+    >
+      {/* Hidden Global PDF File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="application/pdf,.pdf"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleProcessPDFFile(file);
+          e.target.value = '';
+        }}
+        className="hidden"
+      />
 
-      {/* Top Bar Contract (One-row, 3-zone contract with iOS safe area top padding) */}
-      <header
-        className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 header-safe transition-all"
-      >
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-8">
-          {/* Zone 1: Brand Wordmark (Single text element) */}
-          <div className="flex items-center gap-2 sm:gap-2.5 whitespace-nowrap shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm">
+      {/* Minimal iOS Top Header (Dynamic Island Safe Area Aware) */}
+      <header className="sticky top-0 z-30 bg-white/85 dark:bg-black/85 backdrop-blur-xl border-b border-slate-200/80 dark:border-zinc-900 header-safe transition-colors">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+          {/* Brand & Offline Pill */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-600/30 shrink-0">
               <Train className="w-4 h-4" />
             </div>
-            <span className="text-sm sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-              Bilety eTravel
-            </span>
+            <div className="truncate">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                  Bilety eTravel
+                </span>
+                {!isOnline && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-500 text-[10px] font-semibold">
+                    <WifiOff className="w-2.5 h-2.5" />
+                    Offline
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Zone 2: Navigation Links (Clean single-line text links) */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
+          {/* Right Header Controls: Theme Toggle + Hamburger Menu */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => {
-                setActiveFilter('upcoming');
-                window.scrollTo({top: 0, behavior: 'smooth'});
-              }}
-              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              onClick={() => handleToggleTheme()}
+              title={theme === 'dark' ? 'Przełącz na jasny motyw' : 'Przełącz na czarny motyw OLED'}
+              aria-label="Zmień motyw kolorystyczny"
+              className="w-9 h-9 rounded-full bg-slate-100 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 flex items-center justify-center text-slate-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-white active:scale-95 transition cursor-pointer"
             >
-              Portfel biletów
-            </button>
-            <button
-              onClick={() => setIsGuideOpen(true)}
-              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5"
-            >
-              <Github className="w-3.5 h-3.5" />
-              GitHub & iOS PWA
-            </button>
-            <button
-              onClick={() => setIsBackupOpen(true)}
-              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5"
-            >
-              <FileJson className="w-3.5 h-3.5" />
-              Kopia JSON
-            </button>
-          </nav>
-
-          {/* Zone 3: Primary Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="application/pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleProcessPDFFile(file);
-                e.target.value = '';
-              }}
-              className="hidden"
-            />
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessingPDF}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-            >
-              {isProcessingPDF ? (
-                <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin text-blue-400" />
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
               ) : (
-                <UploadCloud className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-blue-400 dark:text-blue-600" />
+                <Moon className="w-4 h-4 text-slate-700" />
               )}
-              <span>Wgraj PDF</span>
             </button>
 
             <button
-              onClick={() => {
-                setTicketToEdit(null);
-                setIsEditorOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Ustawienia, kopia zapasowa i status aplikacji"
+              aria-label="Otwórz menu ustawień"
+              className="w-9 h-9 rounded-full bg-slate-100 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 flex items-center justify-center text-slate-700 dark:text-zinc-200 hover:text-blue-600 dark:hover:text-white active:scale-95 transition cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Ręcznie</span>
+              <Menu className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Viewport */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Connection & Storage Guard Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs">
-          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-            {isOnline ? (
-              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-                <Wifi className="w-3.5 h-3.5" />
-                Połączono (Tryb online)
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
-                <WifiOff className="w-3.5 h-3.5" />
-                Tryb offline (Brak sieci — baza lokalna aktywna)
-              </span>
-            )}
-            <span aria-hidden="true">·</span>
-            <span className="hidden sm:inline">
-              IndexedDB przechowuje {tickets.length} biletów na tym urządzeniu
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsGuideOpen(true)}
-              className="text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-1"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
-              <span>Status pamięci iOS</span>
-            </button>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <button
-              onClick={() => setIsBackupOpen(true)}
-              className="text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-1"
-            >
-              <FileJson className="w-3.5 h-3.5 text-amber-500" />
-              <span>Eksport / Import JSON</span>
-            </button>
-          </div>
-        </div>
-
-        {/* PDF Processing Alert / Toast */}
+      {/* Main Content Area (Scaled for iPhone 16 Pro with generous bottom padding for Tab Bar + FAB) */}
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 pt-4 pb-36 space-y-5">
+        {/* PDF Processing Toast */}
         {pdfProcessMessage && (
-          <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between gap-3 animate-fade-in shadow-sm">
+          <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-3 shadow-sm">
             <div className="flex items-center gap-2.5">
               {isProcessingPDF ? (
-                <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
               ) : (
-                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
               )}
               <span className="font-medium">{pdfProcessMessage}</span>
             </div>
             {!isProcessingPDF && (
               <button
                 onClick={() => setPdfProcessMessage(null)}
-                className="text-blue-700 dark:text-blue-300 font-bold hover:underline"
+                className="text-blue-600 dark:text-blue-400 font-semibold hover:underline shrink-0 cursor-pointer"
               >
-                Zamknij
+                OK
               </button>
             )}
           </div>
         )}
 
-        {/* Dedicated Quick PDF Dropzone Box */}
-        <section
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) handleProcessPDFFile(file);
-          }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`p-5 sm:p-6 rounded-3xl border-2 border-dashed transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left ${
-            isDragging
-              ? 'border-blue-500 bg-blue-50/90 dark:bg-blue-950/60 shadow-lg scale-[1.01]'
-              : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-500 hover:bg-slate-50/60 dark:hover:bg-slate-800/60'
-          }`}
-        >
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-              {isProcessingPDF ? (
-                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              ) : (
-                <UploadCloud className="w-6 h-6" />
-              )}
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-2 justify-center sm:justify-start">
-                <span>Wgraj bilet z pliku PDF (eTravel / PKP Intercity)</span>
-                <span className="px-2 py-0.5 rounded text-[10px] bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold uppercase">
-                  Automatyczny odczyt
+        {/* Drag-and-Drop Overlay Indicator */}
+        {isDragging && (
+          <div className="p-6 rounded-3xl border-2 border-dashed border-blue-500 bg-blue-500/10 text-center text-sm font-semibold text-blue-400">
+            Upuść plik PDF z biletem tutaj, aby automatycznie wyciąć kod Aztec...
+          </div>
+        )}
+
+        {/* Hero Card: Next Active Journey */}
+        {nextJourney && activeFilter === 'upcoming' && !searchQuery && (
+          <section
+            onClick={() => setSelectedForConductor(nextJourney)}
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0f172a] via-[#090d16] to-black text-white p-5 shadow-xl border border-zinc-800/90 cursor-pointer active:scale-[0.99] transition-transform"
+          >
+            {/* Subtle top glow */}
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold tracking-wide uppercase text-[10px]">
+                  Główny bilet
                 </span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
-                Przeciągnij tutaj plik PDF lub kliknij. Aplikacja automatycznie odczyta stacje,
-                godziny, pociąg, wagon, miejsca oraz <strong>wytnie oryginalny kod Aztec</strong> do kontroli.
-              </p>
+                <span className="font-semibold text-zinc-300">
+                  {nextJourney.carrier}
+                </span>
+                <span className="text-zinc-600">·</span>
+                <span className="font-mono font-bold text-white">
+                  {nextJourney.trainNumber}
+                </span>
+              </div>
+
+              <span className="text-xs font-medium text-zinc-400">
+                {new Date(nextJourney.departureTime).toLocaleDateString('pl-PL', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </span>
             </div>
-          </div>
 
-          <div className="shrink-0 flex items-center gap-2">
-            <span className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors">
-              <UploadCloud className="w-4 h-4" />
-              Wybierz plik PDF
-            </span>
-          </div>
-        </section>
-
-        {/* Hero Card: Next Upcoming Train */}
-        {nextJourney && activeFilter !== 'archived' && (
-          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-900 via-indigo-950 to-slate-950 text-white p-5 sm:p-7 shadow-xl border border-blue-950">
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              {/* Left journey summary */}
-              <div className="space-y-4 max-w-xl">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-blue-300 font-medium">
-                  <span className="px-2.5 py-1 rounded-md bg-blue-500/20 text-blue-200 font-semibold tracking-wide uppercase">
-                    Najbliższa podróż
-                  </span>
-                  <span>{nextJourney.carrier}</span>
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono">{nextJourney.trainNumber}</span>
-                  {nextJourney.trainName && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>"{nextJourney.trainName}"</span>
-                    </>
-                  )}
+            {/* Stations & Times */}
+            <div className="grid grid-cols-2 gap-4 py-1">
+              <div>
+                <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
+                  Odjazd
+                </span>
+                <div className="text-2xl font-extrabold font-mono text-white tracking-tight mt-0.5">
+                  {new Date(nextJourney.departureTime).toLocaleTimeString('pl-PL', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <span className="text-[11px] text-blue-300 uppercase tracking-wider block">
-                      Stacja początkowa
-                    </span>
-                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-                      {nextJourney.departureStation}
-                    </h2>
-                    <div className="text-sm text-slate-300 font-mono mt-0.5 flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-blue-400" />
-                      <span>
-                        {new Date(nextJourney.departureTime).toLocaleTimeString('pl-PL', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                      {nextJourney.departurePlatform && (
-                        <span className="text-xs text-slate-400">
-                          ({nextJourney.departurePlatform})
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] text-blue-300 uppercase tracking-wider block">
-                      Stacja docelowa
-                    </span>
-                    <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
-                      {nextJourney.arrivalStation}
-                    </h3>
-                    <div className="text-sm text-slate-300 font-mono mt-0.5 flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>
-                        {new Date(nextJourney.arrivalTime).toLocaleTimeString('pl-PL', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                      {nextJourney.arrivalPlatform && (
-                        <span className="text-xs text-slate-400">
-                          ({nextJourney.arrivalPlatform})
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                <div className="text-sm font-semibold text-zinc-200 truncate mt-0.5">
+                  {nextJourney.departureStation}
                 </div>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300 pt-1">
-                  <span>
-                    Data:{' '}
-                    <strong className="text-white">
-                      {new Date(nextJourney.departureTime).toLocaleDateString('pl-PL', {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'long',
-                      })}
-                    </strong>
+              <div className="text-right">
+                <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">
+                  Przyjazd
+                </span>
+                <div className="text-2xl font-extrabold font-mono text-emerald-400 tracking-tight mt-0.5">
+                  {new Date(nextJourney.arrivalTime).toLocaleTimeString('pl-PL', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+                <div className="text-sm font-semibold text-zinc-200 truncate mt-0.5">
+                  {nextJourney.arrivalStation}
+                </div>
+              </div>
+            </div>
+
+            {/* Wagon / Seat / Conductor Button Bar */}
+            <div className="mt-4 pt-4 border-t border-zinc-800/90 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
+                  <span className="text-[9px] text-zinc-400 uppercase block">
+                    Wagon
                   </span>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    Pasażer: <strong className="text-white">{nextJourney.passengerName}</strong>
+                  <span className="text-base font-extrabold font-mono text-amber-400">
+                    {nextJourney.carNumber}
+                  </span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-center">
+                  <span className="text-[9px] text-zinc-400 uppercase block">
+                    Miejsce
+                  </span>
+                  <span className="text-base font-extrabold font-mono text-white">
+                    {nextJourney.seatNumber}
+                  </span>
+                </div>
+                <div className="hidden xs:block text-xs text-zinc-400 truncate max-w-[130px]">
+                  <span className="block text-[10px] text-zinc-500">Pasażer</span>
+                  <span className="font-medium text-zinc-200 truncate block">
+                    {nextJourney.passengerName}
                   </span>
                 </div>
               </div>
 
-              {/* Right seat HUD & Conductor CTA */}
-              <div className="shrink-0 flex flex-col sm:flex-row lg:flex-col items-stretch gap-3 bg-white/5 p-4 rounded-2xl border border-white/10 lg:w-72">
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="p-2.5 rounded-xl bg-white/10">
-                    <span className="text-[10px] text-blue-200 uppercase tracking-wider block">
-                      Wagon
-                    </span>
-                    <span className="text-2xl font-extrabold font-mono text-amber-400">
-                      {nextJourney.carNumber}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-white/10">
-                    <span className="text-[10px] text-blue-200 uppercase tracking-wider block">
-                      Miejsce
-                    </span>
-                    <span className="text-2xl font-extrabold font-mono text-white">
-                      {nextJourney.seatNumber}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setSelectedForConductor(nextJourney)}
-                  className="w-full py-3 px-4 bg-white text-slate-950 hover:bg-blue-50 font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] cursor-pointer"
-                >
-                  <QrCode className="w-4 h-4 text-blue-600" />
-                  <span>Pokaż do kontroli</span>
-                </button>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedForConductor(nextJourney);
+                }}
+                className="px-4 py-2.5 bg-white text-black hover:bg-zinc-100 font-bold rounded-xl text-xs flex items-center gap-2 shadow-md shrink-0 cursor-pointer"
+              >
+                <QrCode className="w-4 h-4 text-blue-600" />
+                <span>Kod do kontroli</span>
+              </button>
             </div>
           </section>
         )}
 
-        {/* Ticket Filter & Search Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {/* Segmented Filter Control */}
-          <div className="flex items-center gap-1 p-1 bg-slate-200/70 dark:bg-slate-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
-            <button
-              onClick={() => setActiveFilter('upcoming')}
-              className={`py-2 px-3.5 rounded-lg transition-all cursor-pointer ${
-                activeFilter === 'upcoming'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              Nadchodzące ({tickets.filter((t) => !t.isArchived).length})
-            </button>
-            <button
-              onClick={() => setActiveFilter('archived')}
-              className={`py-2 px-3.5 rounded-lg transition-all cursor-pointer ${
-                activeFilter === 'archived'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              Archiwum ({tickets.filter((t) => t.isArchived).length})
-            </button>
-            <button
-              onClick={() => setActiveFilter('all')}
-              className={`py-2 px-3.5 rounded-lg transition-all cursor-pointer ${
-                activeFilter === 'all'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              Wszystkie ({tickets.length})
-            </button>
+        {/* Section Header + Search Input */}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+              {activeFilter === 'upcoming' && 'Nadchodzące podróże'}
+              {activeFilter === 'all' && 'Wszystkie bilety'}
+              {activeFilter === 'archived' && 'Archiwum biletów'}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-zinc-500">
+              {filteredTickets.length}{' '}
+              {filteredTickets.length === 1
+                ? 'bilet zapisany'
+                : filteredTickets.length >= 2 && filteredTickets.length <= 4
+                  ? 'bilety zapisane'
+                  : 'biletów zapisanych'}{' '}
+              offline
+            </p>
           </div>
 
-          {/* Search Input */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Szukaj stacji, pociągu..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-          </div>
+          {tickets.length > 0 && (
+            <div className="relative w-44 sm:w-60">
+              <Search className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Szukaj biletu..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-2 rounded-xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-[#0c0c0f] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 transition"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Ticket List */}
+        {/* Ticket Cards List */}
         {isLoading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            Ładowanie biletów z lokalnej bazy IndexedDB...
+          <div className="p-12 text-center text-slate-400 dark:text-zinc-500 text-xs">
+            Wczytywanie portfela biletów...
           </div>
         ) : filteredTickets.length === 0 ? (
-          <div className="p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
+          <div className="p-8 sm:p-10 rounded-3xl bg-white dark:bg-[#0c0c0f] border border-slate-200/80 dark:border-zinc-800/90 text-center space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
               <Train className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Brak biletów w tym widoku
-            </h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {searchQuery
-                ? 'Nie znaleziono biletów pasujących do Twojego wyszukiwania.'
-                : 'Dodaj swój pierwszy bilet kolejowy lub wklej treść rezerwacji eTravel.'}
-            </p>
-            <div className="pt-2">
-              <button
-                onClick={() => {
-                  setTicketToEdit(null);
-                  setIsEditorOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Dodaj bilet teraz</span>
-              </button>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {searchQuery
+                  ? 'Brak wyników wyszukiwania'
+                  : activeFilter === 'archived'
+                    ? 'Archiwum jest puste'
+                    : 'Portfel biletów jest pusty'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
+                {searchQuery
+                  ? 'Nie znaleziono biletów pasujących do wpisanej frazy.'
+                  : 'Stuknij przycisk (+) w prawym dolnym rogu lub wybierz plik PDF z biletem eTravel / PKP.'}
+              </p>
             </div>
+            {!searchQuery && (
+              <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-sm transition cursor-pointer"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Wgraj bilet PDF</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setTicketToEdit(null);
+                    setIsEditorOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 dark:bg-zinc-900 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-900 dark:text-white font-semibold rounded-xl text-xs border border-slate-200 dark:border-zinc-800 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Dodaj ręcznie</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
             {filteredTickets.map((ticket) => {
               const dep = new Date(ticket.departureTime);
               const arr = new Date(ticket.arrivalTime);
@@ -666,118 +640,104 @@ export default function App() {
                 <article
                   key={ticket.id}
                   onClick={() => setSelectedForConductor(ticket)}
-                  className="group rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer flex flex-col justify-between"
+                  className="group rounded-3xl bg-white dark:bg-[#0c0c0f] border border-slate-200/90 dark:border-zinc-800/90 p-4 sm:p-5 shadow-sm hover:border-blue-500/60 dark:hover:border-blue-500/60 active:scale-[0.99] transition-all cursor-pointer"
                 >
-                  {/* Top Ticket Header */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-bold text-blue-600 dark:text-blue-400">
-                          {ticket.carrier}
+                  {/* Top Bar: Carrier, Train Number & Date */}
+                  <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-zinc-800/80">
+                    <div className="flex items-center gap-2 text-xs min-w-0">
+                      <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0">
+                        {ticket.carrier}
+                      </span>
+                      <span className="text-slate-300 dark:text-zinc-700">·</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
+                        {ticket.trainNumber}
+                      </span>
+                      {ticket.trainName && (
+                        <span className="text-slate-500 dark:text-zinc-400 truncate">
+                          "{ticket.trainName}"
                         </span>
-                        <span aria-hidden="true" className="text-slate-300">·</span>
-                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                          {ticket.trainNumber}
+                      )}
+                      {ticket.isArchived && (
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 text-[10px] font-medium">
+                          Archiwum
                         </span>
-                        {ticket.trainName && (
-                          <span className="text-slate-500 hidden sm:inline">
-                            "{ticket.trainName}"
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {ticket.hasAttachment && (
-                          <span
-                            title="Dołączono dokument PDF lub zrzut ekranu"
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">PDF</span>
-                          </span>
-                        )}
-                        <span className="text-xs text-slate-500 font-medium ml-1">
-                          {dateStr}
-                        </span>
-                      </div>
+                      )}
                     </div>
 
-                    {/* Route and Times */}
-                    <div className="py-3.5 space-y-2">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
-                          {ticket.departureStation}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {ticket.hasAttachment && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-semibold">
+                          <FileText className="w-3 h-3" />
+                          PDF
                         </span>
-                        <span className="text-sm sm:text-base font-bold font-mono text-slate-900 dark:text-white shrink-0">
-                          {depTimeStr}
-                        </span>
-                      </div>
-
-                      <div className="flex items-baseline justify-between gap-3 text-slate-600 dark:text-slate-400">
-                        <span className="text-sm font-semibold truncate">
-                          {ticket.arrivalStation}
-                        </span>
-                        <span className="text-sm font-mono shrink-0">
-                          {arrTimeStr}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Carriage and Seat Details (Tabular discipline) */}
-                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-3 font-mono">
-                        <div>
-                          <span className="text-[10px] text-slate-400 uppercase block font-sans">
-                            Wagon
-                          </span>
-                          <span className="font-bold text-slate-900 dark:text-white text-sm">
-                            {ticket.carNumber}
-                          </span>
-                        </div>
-                        <span aria-hidden="true" className="text-slate-300">/</span>
-                        <div>
-                          <span className="text-[10px] text-slate-400 uppercase block font-sans">
-                            Miejsce
-                          </span>
-                          <span className="font-bold text-slate-900 dark:text-white text-sm">
-                            {ticket.seatNumber}
-                          </span>
-                        </div>
-                        {ticket.seatType && (
-                          <span className="text-slate-500 text-[11px] font-sans">
-                            ({ticket.seatType})
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-right text-[11px] text-slate-500">
-                        Klasa {ticket.travelClass}
-                        {ticket.price && (
-                          <span className="ml-2 font-mono text-slate-700 dark:text-slate-300 font-semibold">
-                            {ticket.price}
-                          </span>
-                        )}
-                      </div>
+                      )}
+                      <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">
+                        {dateStr}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Bottom Action Footer */}
-                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                  {/* Stations & Times */}
+                  <div className="py-3.5 grid grid-cols-[1fr_auto] gap-y-2 gap-x-4 items-baseline">
+                    <div className="text-base font-bold text-slate-900 dark:text-white truncate">
+                      {ticket.departureStation}
+                    </div>
+                    <div className="text-base font-extrabold font-mono text-slate-900 dark:text-white text-right">
+                      {depTimeStr}
+                    </div>
+
+                    <div className="text-sm font-medium text-slate-500 dark:text-zinc-400 truncate">
+                      {ticket.arrivalStation}
+                    </div>
+                    <div className="text-sm font-mono font-semibold text-slate-500 dark:text-zinc-400 text-right">
+                      {arrTimeStr}
+                    </div>
+                  </div>
+
+                  {/* Seat & Carriage Pill Strip */}
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-zinc-900/90 border border-slate-100 dark:border-zinc-800/80 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-3 font-mono">
+                      <div>
+                        <span className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase block font-sans">
+                          Wagon
+                        </span>
+                        <span className="font-bold text-slate-900 dark:text-white text-sm">
+                          {ticket.carNumber}
+                        </span>
+                      </div>
+                      <span className="text-slate-300 dark:text-zinc-700">/</span>
+                      <div>
+                        <span className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase block font-sans">
+                          Miejsce
+                        </span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400 text-sm">
+                          {ticket.seatNumber}
+                        </span>
+                      </div>
+                      {ticket.seatType && (
+                        <span className="text-slate-500 dark:text-zinc-400 text-[11px] font-sans">
+                          ({ticket.seatType})
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-right text-[11px] text-slate-500 dark:text-zinc-400">
+                      <span>Kl. {ticket.travelClass}</span>
+                      {ticket.price && (
+                        <span className="ml-2 font-mono text-slate-800 dark:text-zinc-200 font-semibold">
+                          {ticket.price}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Actions Footer */}
+                  <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 group-hover:underline">
-                        <QrCode className="w-3.5 h-3.5" />
-                        Pokaż do kontroli
+                      <span className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1.5">
+                        <QrCode className="w-4 h-4" />
+                        <span>Pokaż kod QR / Aztec</span>
                       </span>
-                      {ticket.barcodeImageUrl && (
-                        <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
-                          Aztec PDF
-                        </span>
-                      )}
-                      {ticket.emergencyCode && (
-                        <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-mono">
-                          Kod: {ticket.emergencyCode}
-                        </span>
-                      )}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -788,29 +748,40 @@ export default function App() {
                           setIsEditorOpen(true);
                         }}
                         title="Edytuj bilet"
-                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        aria-label="Edytuj bilet"
+                        className="p-2 text-slate-400 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
+                        <Edit2 className="w-4 h-4" />
                       </button>
 
                       <button
                         onClick={(e) => handleToggleArchive(ticket, e)}
-                        title={ticket.isArchived ? 'Przywróć z archiwum' : 'Archiwizuj bilet'}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        title={
+                          ticket.isArchived
+                            ? 'Przywróć do nadchodzących'
+                            : 'Przenieś do archiwum'
+                        }
+                        aria-label={
+                          ticket.isArchived
+                            ? 'Przywróć do nadchodzących'
+                            : 'Przenieś do archiwum'
+                        }
+                        className="p-2 text-slate-400 dark:text-zinc-400 hover:text-amber-500 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
                       >
                         {ticket.isArchived ? (
-                          <RotateCcw className="w-3.5 h-3.5" />
+                          <RotateCcw className="w-4 h-4" />
                         ) : (
-                          <Archive className="w-3.5 h-3.5" />
+                          <Archive className="w-4 h-4" />
                         )}
                       </button>
 
                       <button
-                        onClick={(e) => handleDeleteTicket(ticket.id, e)}
-                        title="Usuń bilet"
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        onClick={(e) => handleDeleteTicket(ticket, e)}
+                        title="Usuń trwale z pamięci"
+                        aria-label="Usuń trwale z pamięci"
+                        className="p-2 text-slate-400 dark:text-zinc-400 hover:text-rose-500 rounded-xl hover:bg-rose-500/10 transition cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -819,36 +790,175 @@ export default function App() {
             })}
           </div>
         )}
-
-        {/* Informational Footer Strip with GitHub Pages link */}
-        <section className="mt-8 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Github className="w-4 h-4 text-slate-900 dark:text-white" />
-              <span className="font-semibold text-slate-900 dark:text-white">
-                Wdrożenie na drozdeski.github.io/bilety-etravel
-              </span>
-            </div>
-            <button
-              onClick={() => setIsGuideOpen(true)}
-              className="text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1"
-            >
-              <span>Zobacz instrukcję konfiguracji GitHub Pages</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <p className="leading-relaxed">
-            Projekt jest w 100% samowystarczalny: Service Worker precache'uje całą aplikację, a IndexedDB
-            gwarantuje, że bilety (w tym załączniki PDF) otwierają się błyskawicznie na stacji lub w pociągu
-            bez zasięgu sieci komórkowej.
-          </p>
-        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto py-5 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 pb-safe">
-        <p>Bilety eTravel — Niezależny portfel biletów kolejowych PWA dla iOS</p>
-      </footer>
+      {/* Undo Delete Toast */}
+      {deletedTicketToast && (
+        <div className="fixed left-4 right-4 max-w-md mx-auto fab-bottom-offset z-40 mb-16 p-3.5 rounded-2xl bg-zinc-900 text-white border border-zinc-700 shadow-2xl flex items-center justify-between gap-3 text-xs">
+          <span className="truncate">
+            Usunięto bilet <strong>{deletedTicketToast.trainNumber}</strong> z pamięci
+          </span>
+          <button
+            onClick={handleUndoDelete}
+            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            <span>Cofnij</span>
+          </button>
+        </div>
+      )}
+
+      {/* Backdrop when FAB speed-dial is open */}
+      {isFabOpen && (
+        <div
+          onClick={() => setIsFabOpen(false)}
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-xs transition-opacity"
+        />
+      )}
+
+      {/* Floating Action Button (FAB) in Bottom-Right Corner */}
+      <div className="fixed right-4 fab-bottom-offset z-40 flex flex-col items-end gap-2.5">
+        {isFabOpen && (
+          <div className="flex flex-col items-end gap-2.5 mb-1">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessingPDF}
+              className="flex items-center gap-3 pl-4 pr-3.5 py-3 rounded-2xl bg-white dark:bg-zinc-900 text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-700 shadow-2xl hover:border-blue-500 active:scale-95 transition cursor-pointer"
+            >
+              <div className="text-right">
+                <span className="block text-xs font-bold">Wgraj bilet PDF</span>
+                <span className="block text-[10px] text-slate-500 dark:text-zinc-400">
+                  Automatyczny odczyt + kod Aztec
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                <UploadCloud className="w-5 h-5" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsFabOpen(false);
+                setTicketToEdit(null);
+                setIsEditorOpen(true);
+              }}
+              className="flex items-center gap-3 pl-4 pr-3.5 py-3 rounded-2xl bg-white dark:bg-zinc-900 text-slate-900 dark:text-white border border-slate-200 dark:border-zinc-700 shadow-2xl hover:border-blue-500 active:scale-95 transition cursor-pointer"
+            >
+              <div className="text-right">
+                <span className="block text-xs font-bold">Dodaj ręcznie</span>
+                <span className="block text-[10px] text-slate-500 dark:text-zinc-400">
+                  Formularz lub wklej tekst e-mail
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                <Edit2 className="w-4 h-4" />
+              </div>
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={() => setIsFabOpen((prev) => !prev)}
+          aria-label="Dodaj bilet"
+          className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-200 active:scale-90 cursor-pointer ${
+            isFabOpen
+              ? 'bg-zinc-800 rotate-45 border border-zinc-700'
+              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/40'
+          }`}
+        >
+          {isProcessingPDF ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : (
+            <Plus className="w-7 h-7 stroke-[2.5]" />
+          )}
+        </button>
+      </div>
+
+      {/* Native iOS Bottom Navigation Tab Bar (iPhone 16 Pro Home Indicator Safe) */}
+      <nav
+        aria-label="Dolna nawigacja"
+        className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-slate-200/80 dark:border-zinc-800/90 bottom-nav-safe"
+      >
+        <div className="max-w-lg mx-auto px-2 pt-2 grid grid-cols-4 gap-1">
+          <button
+            onClick={() => {
+              setActiveFilter('upcoming');
+              window.scrollTo({top: 0, behavior: 'smooth'});
+            }}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
+              activeFilter === 'upcoming' && !isSettingsOpen
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            <div className="relative">
+              <CalendarClock className="w-5 h-5" />
+              {upcomingCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {upcomingCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-semibold mt-1">Nadchodzące</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveFilter('all');
+              window.scrollTo({top: 0, behavior: 'smooth'});
+            }}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
+              activeFilter === 'all' && !isSettingsOpen
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            <div className="relative">
+              <Layers className="w-5 h-5" />
+              {tickets.length > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center justify-center">
+                  {tickets.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-semibold mt-1">Wszystkie</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveFilter('archived');
+              window.scrollTo({top: 0, behavior: 'smooth'});
+            }}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
+              activeFilter === 'archived' && !isSettingsOpen
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            <div className="relative">
+              <Archive className="w-5 h-5" />
+              {archivedCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-[10px] font-bold flex items-center justify-center">
+                  {archivedCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-semibold mt-1">Archiwum</span>
+          </button>
+
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
+              isSettingsOpen
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+            }`}
+          >
+            <SlidersHorizontal className="w-5 h-5" />
+            <span className="text-[10px] font-semibold mt-1">Menu / Status</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Modals */}
       {selectedForConductor && (
@@ -869,15 +979,19 @@ export default function App() {
         />
       )}
 
+      <SettingsDrawerModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        theme={theme}
+        onToggleTheme={(t) => handleToggleTheme(t)}
+        isOnline={isOnline}
+        ticketCount={tickets.length}
+        onDataChanged={loadTickets}
+        onOpenGitHubGuide={() => setIsGuideOpen(true)}
+      />
+
       {isGuideOpen && (
         <GitHubPagesGuideModal onClose={() => setIsGuideOpen(false)} />
-      )}
-
-      {isBackupOpen && (
-        <BackupRestoreModal
-          onClose={() => setIsBackupOpen(false)}
-          onDataChanged={loadTickets}
-        />
       )}
     </div>
   );
