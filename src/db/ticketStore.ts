@@ -172,15 +172,41 @@ export async function getAllTickets(): Promise<TrainTicket[]> {
       request.onsuccess = () => {
         const deletedIds = getDeletedIds();
         const rawTickets = (request.result as TrainTicket[]) || [];
-        // Filter out any ticket that was explicitly deleted and sanitize PDF text remnants
+        let anyModified = false;
         const validTickets = rawTickets
           .filter((t) => t && t.id && !deletedIds.has(t.id))
-          .map((t) => ({
-            ...t,
-            departureStation: cleanStationName(t.departureStation) || t.departureStation,
-            arrivalStation: cleanStationName(t.arrivalStation) || t.arrivalStation,
-            passengerName: cleanPassengerName(t.passengerName) || t.passengerName,
-          }));
+          .map((t) => {
+            const dep = cleanStationName(t.departureStation) || t.departureStation;
+            const arr = cleanStationName(t.arrivalStation) || t.arrivalStation;
+            const pass = cleanPassengerName(t.passengerName) || t.passengerName;
+            if (
+              dep !== t.departureStation ||
+              arr !== t.arrivalStation ||
+              pass !== t.passengerName
+            ) {
+              anyModified = true;
+            }
+            return {
+              ...t,
+              title: `${dep} → ${arr}`,
+              departureStation: dep,
+              arrivalStation: arr,
+              passengerName: pass,
+            };
+          });
+
+        if (anyModified) {
+          try {
+            const writeTx = db.transaction(STORE_TICKETS, 'readwrite');
+            const writeStore = writeTx.objectStore(STORE_TICKETS);
+            for (const vt of validTickets) {
+              writeStore.put(vt);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         const sorted = sortTickets(validTickets);
         saveMirror(sorted);
         resolve(sorted);
@@ -192,7 +218,16 @@ export async function getAllTickets(): Promise<TrainTicket[]> {
     const mirror = loadMirror();
     if (mirror) {
       const deletedIds = getDeletedIds();
-      return sortTickets(mirror.filter((t) => !deletedIds.has(t.id)));
+      return sortTickets(
+        mirror
+          .filter((t) => !deletedIds.has(t.id))
+          .map((t) => ({
+            ...t,
+            departureStation: cleanStationName(t.departureStation) || t.departureStation,
+            arrivalStation: cleanStationName(t.arrivalStation) || t.arrivalStation,
+            passengerName: cleanPassengerName(t.passengerName) || t.passengerName,
+          }))
+      );
     }
     return [];
   }

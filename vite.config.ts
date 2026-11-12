@@ -4,9 +4,9 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
-export default defineConfig(() => {
+export default defineConfig(({command}) => {
   return {
-    base: './', // Ensures relative asset resolution on GitHub Pages (e.g. /bilety-etravel/)
+    base: command === 'build' ? './' : '/',
     plugins: [
       react(),
       tailwindcss(),
@@ -25,9 +25,9 @@ export default defineConfig(() => {
           name: 'Bilety eTravel — Offline Train Ticket Wallet',
           short_name: 'Bilety',
           description:
-            '100% offline train ticket wallet for iOS Safari and mobile devices with IndexedDB storage.',
-          theme_color: '#1e3a8a',
-          background_color: '#0f172a',
+            'Niezależny portfel biletów kolejowych działający w 100% offline z lokalną bazą danych.',
+          theme_color: '#000000',
+          background_color: '#000000',
           display: 'standalone',
           orientation: 'portrait',
           start_url: './',
@@ -54,7 +54,8 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,mjs}'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           runtimeCaching: [
             {
               urlPattern: ({request}) =>
@@ -73,15 +74,14 @@ export default defineConfig(() => {
                 cacheName: 'images-cache',
                 expiration: {
                   maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
               },
             },
           ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {QRCodeSVG} from 'qrcode.react';
 import {
   X,
@@ -13,12 +13,19 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import {TrainTicket} from '../types/ticket';
-import {cleanStationName, cleanPassengerName} from '../utils/pdfParser';
+import {
+  cleanStationName,
+  cleanPassengerName,
+  extractHighResBarcodeFromDataUrl,
+} from '../utils/pdfParser';
+import {saveTicket} from '../db/ticketStore';
 
 interface ConductorModalProps {
   ticket: TrainTicket | null;
   onClose: () => void;
 }
+
+const HD_BARCODE_CACHE_KEY = 'bilety_hd_barcode_upgraded_v1';
 
 export const ConductorModal: React.FC<ConductorModalProps> = ({
   ticket,
@@ -26,6 +33,70 @@ export const ConductorModal: React.FC<ConductorModalProps> = ({
 }) => {
   const [maxBrightness, setMaxBrightness] = useState(false);
   const [showAttachment, setShowAttachment] = useState(false);
+  const [hdBarcodeUrl, setHdBarcodeUrl] = useState<string | undefined>(
+    ticket?.barcodeImageUrl
+  );
+
+  useEffect(() => {
+    setHdBarcodeUrl(ticket?.barcodeImageUrl);
+    if (!ticket) return;
+
+    // Automatically upgrade existing PDF tickets to 4.5x crisp HD Aztec barcode
+    const checkAndUpgrade = async () => {
+      if (!ticket.attachmentDataUrl) return;
+      try {
+        const upgradedMap = JSON.parse(
+          localStorage.getItem(HD_BARCODE_CACHE_KEY) || '{}'
+        );
+        const cleanedDep =
+          cleanStationName(ticket.departureStation) || ticket.departureStation;
+        const cleanedArr =
+          cleanStationName(ticket.arrivalStation) || ticket.arrivalStation;
+        const cleanedPass =
+          cleanPassengerName(ticket.passengerName) || ticket.passengerName;
+
+        const needsStationFix =
+          cleanedDep !== ticket.departureStation ||
+          cleanedArr !== ticket.arrivalStation ||
+          cleanedPass !== ticket.passengerName;
+
+        if (!upgradedMap[ticket.id]) {
+          const newHdUrl = await extractHighResBarcodeFromDataUrl(
+            ticket.attachmentDataUrl
+          );
+          if (newHdUrl) {
+            setHdBarcodeUrl(newHdUrl);
+            upgradedMap[ticket.id] = true;
+            localStorage.setItem(
+              HD_BARCODE_CACHE_KEY,
+              JSON.stringify(upgradedMap)
+            );
+            await saveTicket({
+              ...ticket,
+              departureStation: cleanedDep,
+              arrivalStation: cleanedArr,
+              passengerName: cleanedPass,
+              barcodeImageUrl: newHdUrl,
+            });
+            return;
+          }
+        }
+
+        if (needsStationFix) {
+          await saveTicket({
+            ...ticket,
+            departureStation: cleanedDep,
+            arrivalStation: cleanedArr,
+            passengerName: cleanedPass,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    checkAndUpgrade();
+  }, [ticket]);
 
   if (!ticket) return null;
 
@@ -52,7 +123,9 @@ export const ConductorModal: React.FC<ConductorModalProps> = ({
   const displayArrival =
     cleanStationName(ticket.arrivalStation) || ticket.arrivalStation;
   const displayPassenger =
-    cleanPassengerName(ticket.passengerName) || ticket.passengerName || 'Nieokreślony';
+    cleanPassengerName(ticket.passengerName) ||
+    ticket.passengerName ||
+    'Nieokreślony';
 
   return (
     <div
@@ -108,17 +181,19 @@ export const ConductorModal: React.FC<ConductorModalProps> = ({
         {/* Scrollable Middle Body */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {/* Compact Seat & Coach Banner */}
-          <div className="bg-slate-950 text-white px-4 py-3.5 text-center">
-            <div className="inline-flex items-center gap-1.5 text-[11px] text-blue-300 font-semibold tracking-wider uppercase mb-2">
-              <Train className="w-3.5 h-3.5" />
-              <span>
-                {ticket.carrier} · {ticket.trainNumber}{' '}
-                {ticket.trainName ? `"${ticket.trainName}"` : ''}
+          <div className="bg-slate-950 text-white px-4 py-3 text-center">
+            <div className="flex items-center justify-between gap-2 max-w-xs mx-auto mb-2 text-[11px] text-blue-300 font-semibold uppercase">
+              <span className="inline-flex items-center gap-1">
+                <Train className="w-3.5 h-3.5" />
+                {ticket.carrier} · {ticket.trainNumber}
+              </span>
+              <span className="text-slate-300">
+                Kl. {ticket.travelClass} · {ticket.seatType || 'Siedzące'}
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 max-w-xs mx-auto">
-              <div className="bg-white/10 rounded-2xl py-2 px-3 border border-white/10">
+              <div className="bg-white/10 rounded-2xl py-1.5 px-3 border border-white/10">
                 <span className="text-[10px] uppercase tracking-wider text-slate-300 font-medium block">
                   Wagon
                 </span>
@@ -127,7 +202,7 @@ export const ConductorModal: React.FC<ConductorModalProps> = ({
                 </span>
               </div>
 
-              <div className="bg-white/10 rounded-2xl py-2 px-3 border border-white/10">
+              <div className="bg-white/10 rounded-2xl py-1.5 px-3 border border-white/10">
                 <span className="text-[10px] uppercase tracking-wider text-slate-300 font-medium block">
                   Miejsce
                 </span>
@@ -136,25 +211,22 @@ export const ConductorModal: React.FC<ConductorModalProps> = ({
                 </span>
               </div>
             </div>
-
-            <div className="text-[11px] text-slate-300 mt-2 font-medium">
-              Klasa {ticket.travelClass} · {ticket.seatType || 'Miejsce siedzące'}
-            </div>
           </div>
 
           {/* Aztec / QR Barcode Container (High-Contrast White Area) */}
-          <div className="p-4 sm:p-5 bg-white flex flex-col items-center justify-center border-b border-dashed border-slate-200">
-            <div className="p-2.5 bg-white rounded-2xl border-2 border-slate-900 shadow-inner flex flex-col items-center">
-              {ticket.barcodeImageUrl ? (
+          <div className="p-4 bg-white flex flex-col items-center justify-center border-b border-dashed border-slate-200">
+            <div className="p-3 bg-white rounded-2xl border-2 border-slate-900 shadow-inner flex flex-col items-center">
+              {hdBarcodeUrl ? (
                 <img
-                  src={ticket.barcodeImageUrl}
+                  src={hdBarcodeUrl}
                   alt="Kod Aztec z biletu PDF"
-                  className="w-48 sm:w-52 h-auto object-contain"
+                  style={{imageRendering: 'pixelated'}}
+                  className="w-52 sm:w-56 h-auto object-contain"
                 />
               ) : (
                 <QRCodeSVG
                   value={ticket.barcodeData || `TICKET-${ticket.id}`}
-                  size={190}
+                  size={200}
                   level="M"
                   includeMargin={false}
                 />

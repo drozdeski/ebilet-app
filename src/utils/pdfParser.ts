@@ -26,33 +26,246 @@ export function cleanStationName(name: string): string {
     .replace(/^(?:relacja|przew\.?|poc\.?|kl\.?|wagon|miejsca|\s|-|:|\.)+/gi, '')
     .trim();
 
-  // If multiple words still contain table header remnants, strip up to "miejsca" or "relacja"
   cleaned = cleaned.replace(/^.*\bmiejsca\s+/i, '').trim();
   cleaned = cleaned.replace(/^.*\brelacja\s*[:.-]?\s*/i, '').trim();
 
-  cleaned = cleaned.replace(/Warszawa\s*Centr\.?/i, 'Warszawa Centralna');
-  cleaned = cleaned.replace(/Warszawa\s*Zach\.?/i, 'Warszawa Zachodnia');
-  cleaned = cleaned.replace(/Warszawa\s*Wsch\.?/i, 'Warszawa Wschodnia');
-  cleaned = cleaned.replace(/Wroc[łl]aw\s*G[łl]\.?/i, 'Wrocław Główny');
-  cleaned = cleaned.replace(/Krak[oó]w\s*G[łl]\.?/i, 'Kraków Główny');
-  cleaned = cleaned.replace(/Gda[nń]sk\s*G[łl]\.?/i, 'Gdańsk Główny');
-  cleaned = cleaned.replace(/Gdynia\s*G[łl]\.?/i, 'Gdynia Główna');
-  cleaned = cleaned.replace(/Pozna[nń]\s*G[łl]\.?/i, 'Poznań Główny');
-  cleaned = cleaned.replace(/Katowice\s*G[łl]\.?/i, 'Katowice');
-  cleaned = cleaned.replace(/Szczecin\s*G[łl]\.?/i, 'Szczecin Główny');
-  cleaned = cleaned.replace(/Opole\s*G[łl]\.?/i, 'Opole Główne');
-  cleaned = cleaned.replace(/Bydgoszcz\s*G[łl]\.?/i, 'Bydgoszcz Główna');
-  cleaned = cleaned.replace(/Toru[nń]\s*G[łl]\.?/i, 'Toruń Główny');
-  cleaned = cleaned.replace(/Lublin\s*G[łl]\.?/i, 'Lublin Główny');
+  // Fix any previously duplicated suffixes (e.g. "Głównyównyówny", "Centralnaalnaalna")
+  cleaned = cleaned.replace(/(G[łl][oó]wny)(?:[oó]wny)+/gi, '$1');
+  cleaned = cleaned.replace(/(G[łl][oó]wna)(?:[oó]wna)+/gi, '$1');
+  cleaned = cleaned.replace(/(G[łl][oó]wne)(?:[oó]wne)+/gi, '$1');
+  cleaned = cleaned.replace(/(Centralna)(?:alna)+/gi, '$1');
+  cleaned = cleaned.replace(/(Zachodnia)(?:odnia)+/gi, '$1');
+  cleaned = cleaned.replace(/(Wschodnia)(?:odnia)+/gi, '$1');
+
+  // Expand abbreviations ONLY when not already followed by letters
+  cleaned = cleaned.replace(
+    /Warszawa\s*Centr\.?(?![a-ząćęłńóśźż])/i,
+    'Warszawa Centralna'
+  );
+  cleaned = cleaned.replace(
+    /Warszawa\s*Zach\.?(?![a-ząćęłńóśźż])/i,
+    'Warszawa Zachodnia'
+  );
+  cleaned = cleaned.replace(
+    /Warszawa\s*Wsch\.?(?![a-ząćęłńóśźż])/i,
+    'Warszawa Wschodnia'
+  );
+  cleaned = cleaned.replace(
+    /Wroc[łl]aw\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Wrocław Główny'
+  );
+  cleaned = cleaned.replace(
+    /Krak[oó]w\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Kraków Główny'
+  );
+  cleaned = cleaned.replace(
+    /Gda[nń]sk\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Gdańsk Główny'
+  );
+  cleaned = cleaned.replace(
+    /Gdynia\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Gdynia Główna'
+  );
+  cleaned = cleaned.replace(
+    /Pozna[nń]\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Poznań Główny'
+  );
+  cleaned = cleaned.replace(
+    /Katowice\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Katowice'
+  );
+  cleaned = cleaned.replace(
+    /Szczecin\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Szczecin Główny'
+  );
+  cleaned = cleaned.replace(
+    /Opole\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Opole Główne'
+  );
+  cleaned = cleaned.replace(
+    /Bydgoszcz\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Bydgoszcz Główna'
+  );
+  cleaned = cleaned.replace(
+    /Toru[nń]\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Toruń Główny'
+  );
+  cleaned = cleaned.replace(
+    /Lublin\s*G[łl]\.?(?![a-ząćęłńóśźż])/i,
+    'Lublin Główny'
+  );
+
   return cleaned.trim();
 }
 
 export function cleanPassengerName(name: string): string {
   if (!name) return '';
   return name
-    .replace(/^.*?(?:Informacje\s+o\s+podr[oó][żz]y|Tw[oó]j\s+plan\s+podr[oó][żz]y|Podr[oó][żz]ny|Pasa[żz]er|Imi[eę]\s+i\s+nazwisko)\s*[:.-]?\s*/gi, '')
+    .replace(
+      /^.*?(?:Informacje\s+o\s+podr[oó][żz]y|Tw[oó]j\s+plan\s+podr[oó][żz]y|Podr[oó][żz]ny|Pasa[żz]er|Imi[eę]\s+i\s+nazwisko)\s*[:.-]?\s*/gi,
+      ''
+    )
     .replace(/\s+to\s+Tw[oó]j\s+plan\s+podr[oó][żz]y.*$/i, '')
     .trim();
+}
+
+/**
+ * Applies crisp black/white thresholding and tight bounding-box cropping
+ * to a rendered Aztec / QR barcode canvas so it is razor-sharp on high-DPI screens.
+ */
+function sharpenAndTrimBarcodeCanvas(sourceCanvas: HTMLCanvasElement): string {
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+  const ctx = sourceCanvas.getContext('2d');
+  if (!ctx) return sourceCanvas.toDataURL('image/png');
+
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+
+  let minX = w;
+  let minY = h;
+  let maxX = 0;
+  let maxY = 0;
+
+  // Threshold luminance to crisp pure black (#000000) or pure white (#FFFFFF)
+  const threshold = 175;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      if (lum < threshold) {
+        data[idx] = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 255;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      } else {
+        data[idx] = 255;
+        data[idx + 1] = 255;
+        data[idx + 2] = 255;
+        data[idx + 3] = 255;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  // If valid dark modules were found, crop tightly around the barcode with a clean quiet zone
+  if (maxX > minX && maxY > minY) {
+    const pad = Math.round(Math.max(maxX - minX, maxY - minY) * 0.04);
+    const cropX = Math.max(0, minX - pad);
+    const cropY = Math.max(0, minY - pad);
+    const cropW = Math.min(w - cropX, maxX - minX + pad * 2);
+    const cropH = Math.min(h - cropY, maxY - minY + pad * 2);
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = cropW;
+    outCanvas.height = cropH;
+    const outCtx = outCanvas.getContext('2d');
+    if (outCtx) {
+      outCtx.imageSmoothingEnabled = false;
+      outCtx.fillStyle = '#ffffff';
+      outCtx.fillRect(0, 0, cropW, cropH);
+      outCtx.drawImage(
+        sourceCanvas,
+        cropX,
+        cropY,
+        cropW,
+        cropH,
+        0,
+        0,
+        cropW,
+        cropH
+      );
+      return outCanvas.toDataURL('image/png');
+    }
+  }
+
+  return sourceCanvas.toDataURL('image/png');
+}
+
+/**
+ * Re-extracts an ultra-high-resolution (scale 4.5) crisp Aztec barcode
+ * from a base64 PDF Data URL for already-stored tickets.
+ */
+export async function extractHighResBarcodeFromDataUrl(
+  pdfDataUrl: string
+): Promise<string | undefined> {
+  try {
+    const base64Marker = ';base64,';
+    const base64Index = pdfDataUrl.indexOf(base64Marker);
+    if (base64Index === -1) return undefined;
+    const base64 = pdfDataUrl.slice(base64Index + base64Marker.length);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: bytes,
+      useSystemFonts: true,
+    });
+    const pdf = await loadingTask.promise;
+    const page1 = await pdf.getPage(1);
+
+    // Render at 4.5x scale for razor-sharp barcode modules
+    const hiScale = 4.5;
+    const hiViewport = page1.getViewport({scale: hiScale});
+    const hiCanvas = document.createElement('canvas');
+    hiCanvas.width = hiViewport.width;
+    hiCanvas.height = hiViewport.height;
+    const hiCtx = hiCanvas.getContext('2d');
+    if (!hiCtx) return undefined;
+
+    hiCtx.imageSmoothingEnabled = false;
+    hiCtx.fillStyle = '#ffffff';
+    hiCtx.fillRect(0, 0, hiCanvas.width, hiCanvas.height);
+
+    await page1.render({
+      canvasContext: hiCtx,
+      viewport: hiViewport,
+      canvas: hiCanvas,
+    }).promise;
+
+    const barcodeBox = {
+      x: Math.round(hiCanvas.width * 0.045),
+      y: Math.round(hiCanvas.height * 0.335),
+      w: Math.round(hiCanvas.width * 0.29),
+      h: Math.round(hiCanvas.height * 0.215),
+    };
+
+    const barcodeCanvas = document.createElement('canvas');
+    barcodeCanvas.width = barcodeBox.w;
+    barcodeCanvas.height = barcodeBox.h;
+    const bCtx = barcodeCanvas.getContext('2d');
+    if (!bCtx) return undefined;
+
+    bCtx.imageSmoothingEnabled = false;
+    bCtx.drawImage(
+      hiCanvas,
+      barcodeBox.x,
+      barcodeBox.y,
+      barcodeBox.w,
+      barcodeBox.h,
+      0,
+      0,
+      barcodeBox.w,
+      barcodeBox.h
+    );
+
+    return sharpenAndTrimBarcodeCanvas(barcodeCanvas);
+  } catch (e) {
+    console.warn('Nie udało się wygenerować kodu HD:', e);
+    return undefined;
+  }
 }
 
 export async function parsePDFTicket(
@@ -89,8 +302,8 @@ export async function parsePDFTicket(
     }
   }
 
-  // Render Page 1 to Canvas at high-res (scale 2.0)
-  const scale = 2.0;
+  // Render Page 1 at high resolution (scale 4.0) so barcode is ultra-crisp
+  const scale = 4.0;
   const viewport = page1.getViewport({scale});
   const canvas = document.createElement('canvas');
   canvas.width = viewport.width;
@@ -101,6 +314,7 @@ export async function parsePDFTicket(
   let pdfPagePreviewUrl: string | undefined = undefined;
 
   if (ctx) {
+    ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -110,13 +324,22 @@ export async function parsePDFTicket(
       canvas,
     }).promise;
 
-    pdfPagePreviewUrl = canvas.toDataURL('image/jpeg', 0.85);
+    // Downscale a preview image for the full page attachment viewer to save memory
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.width = Math.round(canvas.width * 0.5);
+    previewCanvas.height = Math.round(canvas.height * 0.5);
+    const pCtx = previewCanvas.getContext('2d');
+    if (pCtx) {
+      pCtx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
+      pdfPagePreviewUrl = previewCanvas.toDataURL('image/jpeg', 0.85);
+    }
 
+    // Extract Aztec/QR code region at full 4.0x scale and binarize for crystal clarity
     const barcodeBox = {
-      x: Math.round(canvas.width * 0.04),
-      y: Math.round(canvas.height * 0.33),
-      w: Math.round(canvas.width * 0.30),
-      h: Math.round(canvas.height * 0.22),
+      x: Math.round(canvas.width * 0.045),
+      y: Math.round(canvas.height * 0.335),
+      w: Math.round(canvas.width * 0.29),
+      h: Math.round(canvas.height * 0.215),
     };
 
     const barcodeCanvas = document.createElement('canvas');
@@ -124,6 +347,7 @@ export async function parsePDFTicket(
     barcodeCanvas.height = barcodeBox.h;
     const bCtx = barcodeCanvas.getContext('2d');
     if (bCtx) {
+      bCtx.imageSmoothingEnabled = false;
       bCtx.drawImage(
         canvas,
         barcodeBox.x,
@@ -135,7 +359,7 @@ export async function parsePDFTicket(
         barcodeBox.w,
         barcodeBox.h
       );
-      barcodeImageUrl = barcodeCanvas.toDataURL('image/png');
+      barcodeImageUrl = sharpenAndTrimBarcodeCanvas(barcodeCanvas);
     }
   }
 
