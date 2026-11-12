@@ -16,33 +16,53 @@ html {
 /* Base safe-area utility classes */
 .pt-safe {
   padding-top: constant(safe-area-inset-top);
-  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  padding-top: max(16px, calc(env(safe-area-inset-top, 0px) + 12px));
 }
 
 .pb-safe {
   padding-bottom: constant(safe-area-inset-bottom);
-  padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px));
 }
 
-/* Top header safe area (iPhone 16 Pro Dynamic Island = 59pt) */
+/* Top header safe area — clears the status bar and progressive blur zone completely */
 .header-safe {
   padding-top: constant(safe-area-inset-top);
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
 }
 
 @supports (-webkit-touch-callout: none) {
   @media all and (display-mode: standalone), (display-mode: fullscreen) {
     .header-safe {
-      padding-top: max(env(safe-area-inset-top, 54px), 54px);
+      padding-top: max(calc(env(safe-area-inset-top, 56px) + 18px), 74px);
     }
   }
 }
 
 .is-ios-standalone .header-safe {
-  padding-top: max(env(safe-area-inset-top, 54px), 54px);
+  padding-top: max(calc(env(safe-area-inset-top, 56px) + 18px), 74px);
 }
 
-/* Bottom iOS Native Tab Bar safe area (iPhone 16 Pro Home Indicator = 34pt) */
+/* Modal overlay safe area — keeps all pop-up headers below the top system blur gradient */
+.modal-safe-Overlay {
+  padding-top: max(20px, calc(env(safe-area-inset-top, 0px) + 18px));
+  padding-bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media all and (display-mode: standalone), (display-mode: fullscreen) {
+    .modal-safe-Overlay {
+      padding-top: max(calc(env(safe-area-inset-top, 56px) + 20px), 76px);
+      padding-bottom: max(calc(env(safe-area-inset-bottom, 24px) + 14px), 32px);
+    }
+  }
+}
+
+.is-ios-standalone .modal-safe-Overlay {
+  padding-top: max(calc(env(safe-area-inset-top, 56px) + 20px), 76px);
+  padding-bottom: max(calc(env(safe-area-inset-bottom, 24px) + 14px), 32px);
+}
+
+/* Bottom Navigation Tab Bar safe area */
 .bottom-nav-safe {
   padding-bottom: constant(safe-area-inset-bottom);
   padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
@@ -60,7 +80,7 @@ html {
   padding-bottom: max(env(safe-area-inset-bottom, 28px), 24px);
 }
 
-/* Floating Action Button offset above bottom nav on iOS */
+/* Floating Action Button offset above bottom nav */
 .fab-bottom-offset {
   bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
 }

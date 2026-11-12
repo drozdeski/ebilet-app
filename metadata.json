@@ -1,6 +1,6 @@
 {
   "name": "Bilety eTravel — Offline Train Ticket Wallet",
-  "description": "100% network-independent train ticket holder and PWA for iOS Safari and mobile devices with IndexedDB storage and GitHub Pages hosting.",
+  "description": "Niezależny portfel biletów kolejowych działający w 100% offline z lokalną bazą danych.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

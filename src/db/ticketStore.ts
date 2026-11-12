@@ -1,4 +1,5 @@
 import {StorageStats, TrainTicket} from '../types/ticket';
+import {cleanStationName, cleanPassengerName} from '../utils/pdfParser';
 
 const DB_NAME = 'BiletyETravelDB';
 const DB_VERSION = 2;
@@ -171,8 +172,15 @@ export async function getAllTickets(): Promise<TrainTicket[]> {
       request.onsuccess = () => {
         const deletedIds = getDeletedIds();
         const rawTickets = (request.result as TrainTicket[]) || [];
-        // Filter out any ticket that was explicitly deleted
-        const validTickets = rawTickets.filter((t) => t && t.id && !deletedIds.has(t.id));
+        // Filter out any ticket that was explicitly deleted and sanitize PDF text remnants
+        const validTickets = rawTickets
+          .filter((t) => t && t.id && !deletedIds.has(t.id))
+          .map((t) => ({
+            ...t,
+            departureStation: cleanStationName(t.departureStation) || t.departureStation,
+            arrivalStation: cleanStationName(t.arrivalStation) || t.arrivalStation,
+            passengerName: cleanPassengerName(t.passengerName) || t.passengerName,
+          }));
         const sorted = sortTickets(validTickets);
         saveMirror(sorted);
         resolve(sorted);

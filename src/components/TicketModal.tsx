@@ -271,10 +271,14 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm pt-safe pb-safe"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-3 sm:px-4 bg-black/80 backdrop-blur-md modal-safe-Overlay"
     >
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 my-8">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#0c0c0f] rounded-3xl max-w-xl w-full max-h-full flex flex-col shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+      >
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-zinc-800">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white">
               <Train className="w-4 h-4" />
@@ -284,19 +288,21 @@ export const TicketModal: React.FC<TicketModalProps> = ({
                 {ticketToEdit ? 'Edytuj bilet kolejowy' : 'Dodaj nowy bilet kolejowy'}
               </h2>
               <p className="text-xs text-slate-500">
-                Wszystkie dane są zapisywane w 100% lokalnie w IndexedDB
+                Wszystkie dane są zapisywane lokalnie w pamięci urządzenia
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white text-xs font-bold cursor-pointer"
             aria-label="Zamknij"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
+            <span>Zamknij</span>
           </button>
         </div>
 
+        <div className="flex-1 overflow-y-auto overscroll-contain p-5">
         {/* Segmented Tab Controls */}
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl my-4 text-xs font-semibold">
           <button
@@ -623,22 +629,23 @@ Podróżny: Jan Kowalski"
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-zinc-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
               Anuluj
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs shadow-md transition-colors"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
             >
               {ticketToEdit ? 'Zapisz zmiany' : 'Dodaj bilet do portfela'}
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );

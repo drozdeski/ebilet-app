@@ -1,6 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import {RailCarrier, TrainTicket} from '../types/ticket';
+import {TrainTicket} from '../types/ticket';
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
@@ -15,8 +15,21 @@ export interface ParsedPDFTicketResult {
   confidence: 'high' | 'medium' | 'low';
 }
 
-function expandStationName(name: string): string {
-  let cleaned = name.trim();
+export function cleanStationName(name: string): string {
+  if (!name) return '';
+  let cleaned = name
+    // Strip common PDF table column headers that precede station names
+    .replace(
+      /^.*?(?:relacja|przew\.?|poc\.?|kl\.?|wagon|miejsca|odjazd|przyjazd|stacja|z\s+stacji)\s*/gi,
+      ''
+    )
+    .replace(/^(?:relacja|przew\.?|poc\.?|kl\.?|wagon|miejsca|\s|-|:|\.)+/gi, '')
+    .trim();
+
+  // If multiple words still contain table header remnants, strip up to "miejsca" or "relacja"
+  cleaned = cleaned.replace(/^.*\bmiejsca\s+/i, '').trim();
+  cleaned = cleaned.replace(/^.*\brelacja\s*[:.-]?\s*/i, '').trim();
+
   cleaned = cleaned.replace(/Warszawa\s*Centr\.?/i, 'Warszawa Centralna');
   cleaned = cleaned.replace(/Warszawa\s*Zach\.?/i, 'Warszawa Zachodnia');
   cleaned = cleaned.replace(/Warszawa\s*Wsch\.?/i, 'Warszawa Wschodnia');
@@ -31,7 +44,15 @@ function expandStationName(name: string): string {
   cleaned = cleaned.replace(/Bydgoszcz\s*G[łl]\.?/i, 'Bydgoszcz Główna');
   cleaned = cleaned.replace(/Toru[nń]\s*G[łl]\.?/i, 'Toruń Główny');
   cleaned = cleaned.replace(/Lublin\s*G[łl]\.?/i, 'Lublin Główny');
-  return cleaned;
+  return cleaned.trim();
+}
+
+export function cleanPassengerName(name: string): string {
+  if (!name) return '';
+  return name
+    .replace(/^.*?(?:Informacje\s+o\s+podr[oó][żz]y|Tw[oó]j\s+plan\s+podr[oó][żz]y|Podr[oó][żz]ny|Pasa[żz]er|Imi[eę]\s+i\s+nazwisko)\s*[:.-]?\s*/gi, '')
+    .replace(/\s+to\s+Tw[oó]j\s+plan\s+podr[oó][żz]y.*$/i, '')
+    .trim();
 }
 
 export async function parsePDFTicket(
@@ -80,7 +101,6 @@ export async function parsePDFTicket(
   let pdfPagePreviewUrl: string | undefined = undefined;
 
   if (ctx) {
-    // Fill white background first
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -90,13 +110,8 @@ export async function parsePDFTicket(
       canvas,
     }).promise;
 
-    // Full page preview
     pdfPagePreviewUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    // Extract Aztec/QR code region on the left:
-    // In eTravel ticket layout, the barcode is located on the left side:
-    // x: roughly 4% to 33% of page width
-    // y: roughly 33% to 56% of page height
     const barcodeBox = {
       x: Math.round(canvas.width * 0.04),
       y: Math.round(canvas.height * 0.33),
@@ -124,9 +139,6 @@ export async function parsePDFTicket(
     }
   }
 
-  // -------------------------------------------------------------
-  // Data extraction using targeted rules for eTravel / PKP tickets
-  // -------------------------------------------------------------
   const ticket: Partial<TrainTicket> = {
     carrier: 'PKP Intercity',
     travelClass: '2',
@@ -135,7 +147,7 @@ export async function parsePDFTicket(
     updatedAt: Date.now(),
   };
 
-  // 1. Ticket Number (e.g. "Bilet nr WL 95054990" or "Bilet nr: WL 95054982")
+  // 1. Ticket Number
   const ticketNrMatch = fullText.match(
     /Bilet\s*(?:nr\.?|numer)?\s*[:.-]?\s*([A-Z]{1,3}\s*\d{6,12})/i
   );
@@ -143,8 +155,11 @@ export async function parsePDFTicket(
     ticket.ticketNumber = ticketNrMatch[1].trim();
   }
 
-  // 2. Passenger Name (e.g. "Tomasz Drozdowicz to Twój plan podróży" or "Podróżny: Tomasz Drozdowicz")
+  // 2. Passenger Name
   const passengerMatch =
+    fullText.match(
+      /(?:Informacje\s+o\s+podr[oó][żz]y\s+)?([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż-]+)+)\s+to\s+Tw[oó]j\s+plan\s+podr[oó][żz]y/
+    ) ||
     fullText.match(
       /([A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ\s-]+?)\s+to\s+Tw[oó]j\s+plan\s+podr[oó][żz]y/i
     ) ||
@@ -152,10 +167,10 @@ export async function parsePDFTicket(
       /(?:podr[oó][żz]ny|pasa[żz]er)\s*[:.-]?\s*([A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ\s-]+?)(?=\s+to|\s+relacja|\n|$)/i
     );
   if (passengerMatch) {
-    ticket.passengerName = passengerMatch[1].trim();
+    ticket.passengerName = cleanPassengerName(passengerMatch[1]);
   }
 
-  // 3. Train Number & Category (e.g. "EIP 1604", "EIC 6100", "IC 5310")
+  // 3. Train Number & Category
   const trainMatch = fullText.match(
     /\b(EIP|EIC|IC|TLK)\s*(\d{3,5})\b/i
   );
@@ -172,16 +187,16 @@ export async function parsePDFTicket(
     }
   }
 
-  // 4. Route (e.g. "Warszawa Centr. -> Wrocław Gł." or "Wrocław Gł. -> Warszawa Centr.")
+  // 4. Route
   const routeMatch = fullText.match(
     /([A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ\s.]+?)\s*(?:->|–|-|do)\s*([A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ\s.]+?)(?=\s+\d{1,2}:\d{2}|\s+Informacje|\s+Przejazd|\()/i
   );
   if (routeMatch) {
-    ticket.departureStation = expandStationName(routeMatch[1]);
-    ticket.arrivalStation = expandStationName(routeMatch[2]);
+    ticket.departureStation = cleanStationName(routeMatch[1]);
+    ticket.arrivalStation = cleanStationName(routeMatch[2]);
   }
 
-  // 5. Times & Date (e.g. "16:44 - 20:16" or "17:01 - 20:44", "24.09.2026" or "22.09.2026")
+  // 5. Times & Date
   const timeMatch = fullText.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
   const dateMatch = fullText.match(/(\d{2})\.(\d{2})\.(\d{4})/);
 
@@ -196,7 +211,7 @@ export async function parsePDFTicket(
     ticket.arrivalTime = `${formattedDate}T${timeMatch[2].padStart(5, '0')}`;
   }
 
-  // 6. Wagon & Seat (e.g. "2 Wagon bezprzedziałowy" and "24 środek", or "13 Wagon przedziałowy" and "62 korytarz")
+  // 6. Wagon & Seat
   const wagonMatch = fullText.match(
     /(\d{1,3})\s*Wagon(?:\s*(bezprzedzia[łl]owy|przedzia[łl]owy))?/i
   );
@@ -221,7 +236,6 @@ export async function parsePDFTicket(
     else if (typeStr.includes('srodek') || typeStr.includes('środek'))
       ticket.seatType = 'Środek';
   } else {
-    // Fallback seat search
     const fallbackSeat = fullText.match(/miejsca\s*(\d{1,3})/i);
     if (fallbackSeat) {
       ticket.seatNumber = fallbackSeat[1];
@@ -256,7 +270,6 @@ export async function parsePDFTicket(
     ticket.carrier = 'PKP Intercity';
   }
 
-  // Barcode data fallback
   ticket.barcodeData =
     ticket.ticketNumber ||
     ticket.bookingReference ||
